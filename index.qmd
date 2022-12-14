@@ -1,0 +1,359 @@
+---
+title: "Libelulas en Costa Rica"
+format: 
+  html:
+    theme: cosmo
+    page-layout: custom
+server: shiny
+author: "Natalia Mora y Ligia Espinoza"
+---
+
+```{r}
+#| label: inicio
+#| context: setup
+#| message: false
+#| warning: false
+# Bloque para operaciones iniciales
+library(tidyverse) #Carga de tidyverse (incluye ggplot3 y readr)
+library(plotly) # Carga de plotly
+library(DT) # Carga de DT
+library(dplyr) # Carga de dplyr
+library(sf) #Carga de sf
+library(leaflet) #Carga de leaflet para mapas interactivos
+library(data.table)
+library(shiny)
+library(rsconnect)
+```
+
+```{r}
+#| label: lectura-datos
+#| context: data
+archivo_dwc <- "Libelula.csv"
+# Lectura del archivo DwC
+libelula <-
+  st_read(
+    archivo_dwc,
+    options = c(
+      "X_POSSIBLE_NAMES=decimalLongitude", # columna de longitud decimal
+      "Y_POSSIBLE_NAMES=decimalLatitude" 
+    ),
+    quiet = TRUE
+  )
+asp <-
+  st_read(
+    "ASP.shp",
+    options = "ENCODING=UTF8",
+    quiet = TRUE  # para evitar el despliegue de mensajes
+  )
+```
+
+```{r}
+#| panel: sidebar
+# Barra lateral
+# Lista de especies
+lista_especies <- unique(libelula$species)
+lista_especies <- sort(lista_especies)
+lista_especies <- c("Todas", lista_especies)
+# Selector de especies
+selectInput(
+  inputId = "especie",
+  label = "Especie",
+  choices = lista_especies,
+  selected = "Todas"
+)
+#Lita años
+lista_anos <- unique(libelula$year) #obtener valores 
+lista_anos <- sort(lista_anos) #ordenar
+lista_anos <- c("Todos", lista_anos) #agregar opción todas
+# Selector de especies
+selectInput(
+  inputId = "ano",
+  label = "Año",
+  choices = lista_anos,
+  selected = "Todos"
+)
+
+#Lista de Provincias
+lista_provincia <- unique(libelula$stateProvince) #obtener valores 
+lista_provincia <- sort(lista_provincia) #ordenar
+lista_provincia <- c("Todas", lista_provincia) #agregar opción todas
+
+# Lista Provincia
+selectInput(
+  inputId = "provincia",
+  label = "Provincias de Costa Rica",
+  choices = lista_provincia,
+  selected = "Todas"
+)
+```
+
+```{r}
+#| panel: fill
+# Cuerpo principal de la interfaz de usuario
+dataTableOutput("Tabla")
+```
+
+```{r}
+#| label: servidor
+#| context: server
+filtrarRegistros <- reactive({
+  # Valor inicial del objeto que va a retornarse
+  registros_filtrados <- libelula
+  
+  if (input$especie != "Todas") {
+    registros_filtrados <-
+      registros_filtrados |>
+      filter(species == input$especie)
+  }
+  
+  if (input$ano != "Todos") {
+    registros_filtrados <-
+      registros_filtrados |>
+      filter(year == input$ano)
+  }
+  
+  if (input$provincia != "Todas") {
+    registros_filtrados <-
+      registros_filtrados |>
+      filter(stateProvince == input$provincia)
+  }
+  
+  
+  return(registros_filtrados)
+})  
+  
+# Tabla con registros de presencia
+output$Tabla <- renderDataTable({
+  libelula <- filtrarRegistros()
+  
+  libelula |>
+    st_drop_geometry() |>
+    select(species, stateProvince, locality, eventDate) |>
+    datatable(
+      colnames = c("Especie", "Provincia", "Localidad", "Fecha"),
+      options = list(
+        pageLength = 5,
+        language = list(url = '//cdn.datatables.net/plug-ins/1.10.11/i18n/Spanish.json')
+      )
+    )
+})
+```
+
+## Grafico
+
+```{r}
+#| panel: sidebar
+#| warning: false
+lista_especies_plot <- unique(libelula$species) #obtener valores 
+llista_especies_plot <- sort(lista_especies_plot) #ordenar
+lista_especies_plot <- c("Todas", lista_especies_plot) #agregar opción todas
+# Selector de especies
+selectInput(
+  inputId = "especie_plot",
+  label = "Especie",
+  choices = lista_especies_plot,
+  selected = "Todas"
+)
+#Lita años
+lista_anos_plot <- unique(libelula$year) #obtener valores 
+lista_anos_plot <- sort(lista_anos_plot) #ordenar
+lista_anos_plot <- c("Todos", lista_anos_plot) #agregar opción todas
+# Selector de especies
+selectInput(
+  inputId = "ano_plot",
+  label = "Año",
+  choices = lista_anos_plot,
+  selected = "Todos"
+)
+#Provincias
+lista_provincia_plot <- unique(libelula$stateProvince) 
+lista_provincia_plot <- sort(lista_provincia_plot)
+lista_provincia_plot <- c("Todas", lista_provincia_plot) 
+# Seleccionar Provincia
+selectInput(
+  inputId = "provincia_plot",
+  label = "Provincia",
+  choices = lista_provincia_plot,
+  selected = "Todas"
+)
+```
+
+```{r}
+#| panel: fill
+# Cuerpo principal de la interfaz de usuario
+plotlyOutput("plot")
+```
+
+```{r}
+#| label: servidor-plot
+#| context: server
+#| warning: false
+filtrarRegistros_plot <- reactive({
+  # Valor inicial del objeto que va a retornarse
+  registros_filtrados_plot <- libelula
+  
+  if (input$especie_plot != "Todas") {
+    registros_filtrados_plot <-
+      registros_filtrados_plot |>
+      filter(species == input$especie_plot)
+  }
+  
+    if (input$ano_plot != "Todos") {
+    registros_filtrados_plot <-
+      registros_filtrados_plot |>
+      filter(year == input$ano_plot)
+  }
+  
+  if (input$provincia_plot != "Todas") {
+    registros_filtrados_plot <-
+      registros_filtrados_plot |>
+      filter(stateProvince == input$provincia_plot)
+  }
+  
+  return(registros_filtrados_plot)
+})  
+output$plot <- renderPlotly({
+  
+  libelula <- filtrarRegistros_plot()
+  
+grafico_barras <-
+libelula |>
+  ggplot(aes(x = as.numeric(month), fill = species)) +
+  scale_x_continuous(breaks = seq(1,12,1))+
+  scale_x_continuous(breaks = seq(1,12,1), labels = c("1" = "Enero", "2" = "Febrero", "3" = "Marzo", "4" = "Abril", 
+           "5" = "Mayo", "6" = "Junio", "7" = "Julio", "8" = "Agosto", 
+           "9" =  "Septiembre", "10" =  "Octubre", "11" =  "Noviembre", "12" =  "Diciembre"))+
+  geom_bar() +
+  ggtitle("Cantidad de Registros por Especie en Cada mes") +
+  xlab("meses") +
+  ylab("Cantidad") +
+  labs(fill = "Especie") 
+# Gráfico de barras plotly
+ggplotly(grafico_barras) |> 
+  config(locale = 'es')
+  
+})
+```
+
+## Mapa de Registros
+
+```{r}
+#| panel: sidebar
+lista_especies_map <- unique(libelula$species) #obtener valores 
+llista_especies_map <- sort(lista_especies_map) #ordenar
+lista_especies_map <- c("Todas", lista_especies_map) #agregar opción todas
+# Selector de especies
+selectInput(
+  inputId = "especie_map",
+  label = "Especie",
+  choices = lista_especies_map,
+  selected = "Todas"
+)
+#Lita años
+lista_anos_map <- unique(libelula$year) #obtener valores 
+lista_anos_map <- sort(lista_anos_map) #ordenar
+lista_anos_map <- c("Todos", lista_anos_map) #agregar opción todas
+# Selector de especies
+selectInput(
+  inputId = "ano_map",
+  label = "Año",
+  choices = lista_anos_map,
+  selected = "Todos"
+)
+#Provincias
+lista_provincia_map <- unique(libelula$stateProvince) #obtener valores 
+lista_provincia_map <- sort(lista_provincia_map) #ordenar
+lista_provincia_map <- c("Todas", lista_provincia_map) #agregar opción todas
+# Seleccion Provincias
+selectInput(
+  inputId = "provincia_map",
+  label = "Provincia",
+  choices = lista_provincia_map,
+  selected = "Todas"
+)
+```
+
+```{r}
+#| panel: fill
+leafletOutput("mymap")
+```
+
+```{r}
+#| label: servidor-mapa
+#| context: server
+#| warning: false
+filtrarRegistros_map <- reactive({
+  # Valor inicial del objeto que va a retornarse
+  registros_filtrados_map <- libelula
+  
+  if (input$especie_map != "Todas") {
+    registros_filtrados_map <-
+      registros_filtrados_map |>
+      filter(species == input$especie_map)
+  }
+  
+    if (input$ano_map != "Todos") {
+    registros_filtrados_map <-
+      registros_filtrados_map |>
+      filter(year == input$ano_map)
+  }
+  
+  if (input$provincia_map != "Todas") {
+    registros_filtrados_map <-
+      registros_filtrados_map |>
+      filter(stateProvince == input$provincia_map)
+  }
+  
+  return(registros_filtrados_map)
+})  
+output$mymap <- renderLeaflet({
+  
+  libelula <- filtrarRegistros_map()
+  
+ #Definición de SCR
+  st_crs(libelula) <- 4326
+# Transformación del CRS del objeto provincias a WGS84 (EPSG = 4326)
+asp <-
+    asp |>
+    st_transform(4326)
+leaflet() |>
+  setView(# centro y nivel inicial de acercamiento
+   lng = -84.19452,
+    lat = 9.572735,
+    zoom = 7) |>
+  addTiles(group = "OpenStreetMap") |>
+  addProviderTiles(providers$Esri.NatGeoWorldMap) |>
+  addPolygons(
+    # capa de provincias (polígonos)
+    data = asp,
+    color = "black",
+    fillColor = "transparent",
+    stroke = TRUE,
+    weight = 1.3,
+    group = "ASP",
+    popup = paste(
+      paste0("<strong>Provincia: </strong>", libelula$stateProvince),
+      sep = '<br/>')
+    ) |>
+  addCircleMarkers(
+    # capa de registros de presencia (puntos)
+    data = libelula,
+    stroke = F,
+    radius = 5,
+    fillColor = 'darkblue',
+    fillOpacity = 1,
+    group = "Trogones",
+    popup = paste(
+      paste0("<strong>Especie: </strong>", libelula$species ), 
+      paste0("<br><strong>Provincia: </strong>", libelula$stateProvince ), 
+      paste0("<br><strong>Localidad: </strong>", libelula$locality), 
+      paste0("<br><strong>Fecha: </strong>", libelula$eventDate )
+    )#<br> asigna una nueva línea para  una mejor visualización en el popup.
+  ) |>
+  addLayersControl(
+    baseGroups = c("OpenStreetMap", "Esri.NatGeoWorldMap"),
+    overlayGroups = c("Trogones", "ASP")) |> # control de capas
+  addScaleBar(position = "bottomright", options = scaleBarOptions(imperial = FALSE)) |> # barra de escala
+  addMiniMap(position = "bottomleft")  # mapa de ubicación
+})
+```

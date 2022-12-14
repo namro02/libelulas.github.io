@@ -1,0 +1,15 @@
+name: libelula
+title: libelula
+username:
+account: za8lnf-natalia-mora0rodriguez
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 7891958
+bundleId: 6636413
+url: https://za8lnf-natalia-mora0rodriguez.shinyapps.io/libelula/
+when: 1671029242.48785
+lastSyncTime: 1671029242.48787
+quarto_version: 1.0.36
+quarto_engines: knitr
+asMultiple: FALSE
+asStatic: FALSE
